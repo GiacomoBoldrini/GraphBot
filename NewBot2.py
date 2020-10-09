@@ -26,24 +26,27 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 # State definitions for top level conversation
-SELECTING_ACTION, ADDING_ATHLETE, ADDING_NAME, SELECTING_FEAT, ADDING_SELF, DESCRIBING_SELF = map(chr, range(6))
+SELECTING_ACTION, ADDING_ATHLETE, ADDING_NAME, SELECTING_FEAT, ADDING_PERFORMANCE, SELECTING_PERFORMANCE, PERFORMANCE = map(chr, range(7))
 # State definitions for second level conversation
-SELECTING_LEVEL, SELECTING_GENDER = map(chr, range(6, 8))
+SELECTING_LEVEL, SELECTING_GENDER = map(chr, range(7, 9))
 # State definitions for descriptions conversation
-SELECTING_FEATURE, TYPING = map(chr, range(8, 10))
+SELECTING_FEATURE, TYPING = map(chr, range(9, 11))
 # Meta states
-STOPPING, SHOWING = map(chr, range(10, 12))
+STOPPING, SHOWING = map(chr, range(11, 13))
 # Shortcut for ConversationHandler.END
 END = ConversationHandler.END
 
 # Different constants for this example
 (PARENTS, CHILDREN, SELF, GENDER, MALE, FEMALE, AGE, NAME, START_OVER, FEATURES,
- CURRENT_FEATURE, CURRENT_LEVEL) = map(chr, range(12, 24))
+ CURRENT_FEATURE, CURRENT_LEVEL) = map(chr, range(13, 25))
 
 
-SELECTING_FEAT, ADDING_NAME, ADD_FEATURES  = map(chr, range(24, 27))
+SELECTING_FEAT, ADDING_NAME, ADD_FEATURES  = map(chr, range(25, 28))
 
-WEIGHT, MAXLOAD, LEAD_RP, LEAD_OS, BOULDER_RP, BOULDER_OS, ATHLETES  = map(chr, range(27, 34))
+WEIGHT, MAXLOAD, LEAD_RP, LEAD_OS, BOULDER_RP, BOULDER_OS, ATHLETES  = map(chr, range(28, 35))
+
+
+POT_SBARRA, SOSPENSIONI  = map(chr, range(35, 37))
 
 ATHLETE = ""
 
@@ -71,6 +74,13 @@ def _feature_switcher(level):
         return "Boulder_Red_Point"
     elif level == BOULDER_OS:
         return "Boulder_On_Sight"
+
+
+def _performance_switcher(level):
+    if level == POT_SBARRA:
+        return "Potenza Sbarra"
+    if level == SOSPENSIONI:
+        return "Sospensioni"
 
 
 
@@ -135,43 +145,6 @@ def show_ath(update, context):
     return SHOWING
 
 
-
-
-def show_athletes(update, context):
-
-    """Pretty print gathered data."""
-    def prettyprint_all(user_data, level):
-        people = user_data.get(level)
-        if not people:
-            return '\nNo information yet.'
-
-        text = ''
-
-        for key, value in people.items():
-            text += "\n" + key 
-
-            for k, v in value.items():
-                text += "\n" + k + " : " + v 
-
-            text += "\n"
-
-        return text
-
-    ud = context.user_data
-    text = 'You Saved the following athletes:' + prettyprint_all(ud, ATHLETES)
-
-    buttons = [[
-        InlineKeyboardButton(text='Indietro', callback_data=str(END))
-    ]]
-    keyboard = InlineKeyboardMarkup(buttons)
-
-    update.callback_query.answer()
-    update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    ud[START_OVER] = True
-
-    return SHOWING
-
-
 # Top level conversation callbacks
 def start(update, context):
     """Select an action: Adding parent/child or show data."""
@@ -180,7 +153,7 @@ def start(update, context):
            '\nPer farmi ripartire scrivi /start.'
     buttons = [[
         InlineKeyboardButton(text='Aggiungi/Modifica Atleta', callback_data=str(ADDING_ATHLETE)),
-        InlineKeyboardButton(text='Add yourself', callback_data=str(ADDING_SELF))
+        InlineKeyboardButton(text='Aggiungi Performance', callback_data=str(ADDING_PERFORMANCE))
     ], [
         InlineKeyboardButton(text='Mostra Metadati Atleti', callback_data=str(SHOWING)),
         InlineKeyboardButton(text='Chiudi', callback_data=str(END))
@@ -214,43 +187,6 @@ def adding_self(update, context):
     update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
 
     return DESCRIBING_SELF
-
-
-def show_data(update, context):
-    """Pretty print gathered data."""
-    def prettyprint(user_data, level):
-        people = user_data.get(level)
-        if not people:
-            return '\nNo information yet.'
-
-        text = ''
-        if level == SELF:
-            for person in user_data[level]:
-                text += '\nName: {}, Age: {}'.format(person.get(NAME, '-'), person.get(AGE, '-'))
-        else:
-            male, female = _name_switcher(level)
-
-            for person in user_data[level]:
-                gender = female if person[GENDER] == FEMALE else male
-                text += '\n{}: Name: {}, Age: {}'.format(gender, person.get(NAME, '-'),
-                                                         person.get(AGE, '-'))
-        return text
-
-    ud = context.user_data
-    text = 'Yourself:' + prettyprint(ud, SELF)
-    text += '\n\nParents:' + prettyprint(ud, PARENTS)
-    text += '\n\nChildren:' + prettyprint(ud, CHILDREN)
-
-    buttons = [[
-        InlineKeyboardButton(text='Indietro', callback_data=str(END))
-    ]]
-    keyboard = InlineKeyboardMarkup(buttons)
-
-    update.callback_query.answer()
-    update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    ud[START_OVER] = True
-
-    return SHOWING
 
 
 def stop(update, context):
@@ -320,32 +256,6 @@ def end_second_level(update, context):
 
     return END
 
-
-# Third level callbacks
-def select_feature(update, context):
-    """Select a feature to update for the person."""
-    buttons = [[
-        InlineKeyboardButton(text='Name', callback_data=str(NAME)),
-        InlineKeyboardButton(text='Age', callback_data=str(AGE)),
-        InlineKeyboardButton(text='Done', callback_data=str(END)),
-    ]]
-    keyboard = InlineKeyboardMarkup(buttons)
-
-    # If we collect features for a new person, clear the cache and save the gender
-    if not context.user_data.get(START_OVER):
-        context.user_data[FEATURES] = {GENDER: update.callback_query.data}
-        text = 'Please select a feature to update.'
-
-        update.callback_query.answer()
-        update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    # But after we do that, we need to send a new message
-    else:
-        text = 'Got it! Please select a feature to update.'
-        update.message.reply_text(text=text, reply_markup=keyboard)
-
-    context.user_data[START_OVER] = False
-    return SELECTING_FEATURE
-
 # Third level callbacks
 def select_feature_2(update, context):
     """Select a feature to update for the person."""
@@ -382,10 +292,40 @@ def select_feature_2(update, context):
     return SELECTING_FEATURE
 
 
+def select_performance(update, context):
+    """Select a feature to update for the person."""
+    buttons = [[
+        InlineKeyboardButton(text='Potenza Trazioni', callback_data=str(POT_SBARRA)),
+        InlineKeyboardButton(text='Sospensioni', callback_data=str(SOSPENSIONI)),
+    ], 
+    [InlineKeyboardButton(text='Indietro', callback_data=str(END))]]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    # If we collect features for a new person, clear the cache and save the gender
+    if not context.user_data.get(START_OVER):
+        #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
+        text = 'Selezionare un attributo da aggiornare'
+
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    # But after we do that, we need to send a new message
+    else:
+        text = 'Selezionare un attributo da aggiornare'
+        update.message.reply_text(text=text, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+    return SELECTING_FEATURE
+
+
 def ask_for_input(update, context):
     """Prompt user to input data for selected feature."""
     context.user_data[CURRENT_FEATURE] = update.callback_query.data
-    text = 'Okay, Scrivi info per {}'.format(_feature_switcher(update.callback_query.data))
+
+    if update.callback_query.data in [POT_SBARRA, SOSPENSIONI]:
+        text = 'Okay, Scrivi info per {}'.format(_performance_switcher(update.callback_query.data))
+
+    else:
+        text = 'Okay, Scrivi info per {}'.format(_feature_switcher(update.callback_query.data))
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=text)
@@ -470,6 +410,42 @@ def save_name(update, context):
 
     return SELECTING_FEAT
 
+
+def select_name_for_perf(update, context):
+    """Save input for feature and return to feature selection."""
+    ud = context.user_data
+    ud[CURRENT_FEATURE] = update.message.text
+    ud[ATHLETE] = update.message.text
+
+    if ud[CURRENT_FEATURE] not in ud[ATHLETES].keys():
+        ud[ATHLETES][ud[CURRENT_FEATURE]] = {}
+        ud[ATHLETES][ud[CURRENT_FEATURE]][PERFORMANCE] = {}
+        text = 'Ho creato un nuovo atleta chiamato: {}'.format(update.message.text)
+
+    elif PERFORMANCE not in ud[ATHLETES][ud[CURRENT_FEATURE]].keys():
+        ud[ATHLETES][ud[CURRENT_FEATURE]][PERFORMANCE] = {}
+        text = 'Creo spazio performance per atleta: {}'.format(update.message.text)
+    else:
+        text = 'Aggiorno performances per l\'atleta: {}'.format(update.message.text)
+
+    #ud[START_OVER] = True
+
+    
+    update.message.reply_text(text=text)
+
+    buttons = [[
+        InlineKeyboardButton(text='Aggiungi Performance', callback_data=str(PERFORMANCE)),
+        InlineKeyboardButton(text='Indietro', callback_data=str(END))
+    ]]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    text = 'Per favore, scegli tra le opzioni qui sotto:'
+    update.message.reply_text(text=text, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+
+    return SELECTING_PERFORMANCE
+
 def save_input_feature(update, context):
     """Save input for feature and return to feature selection."""
     ud = context.user_data
@@ -484,6 +460,22 @@ def save_input_feature(update, context):
     ud[START_OVER] = True
 
     return select_feature_2(update, context)
+
+
+def save_input_performance(update, context):
+    """Save input for performance and return to performance selection."""
+    ud = context.user_data
+    level = _performance_switcher(ud[CURRENT_FEATURE])
+
+    print("level: {}, athlete: {}".format(level, ud[ATHLETE]))
+    #level = update.callback_query.data
+    ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][level] = update.message.text
+
+    print(ud)
+
+    ud[START_OVER] = True
+
+    return select_performance(update, context)
 
 
 def end_describing(update, context):
@@ -505,6 +497,17 @@ def end_describing(update, context):
     """
     ud[START_OVER] = True
     ask_for_name(update, context)
+
+    return END
+
+
+def end_performing(update, context):
+    """End gathering of features and return to parent conversation."""
+    ud = context.user_data
+    level = ud[CURRENT_LEVEL]
+
+    ud[START_OVER] = True
+    start(update, context)
 
     return END
 
@@ -538,6 +541,29 @@ def main():
 
         fallbacks=[
             CallbackQueryHandler(end_describing, pattern='^' + str(END) + '$'),
+            CommandHandler('stop', stop_nested)
+        ],
+
+        map_to_parent={
+            # Return to second level menu
+            END: SELECTING_ACTION,
+            # End conversation alltogether
+            STOPPING: STOPPING,
+        }
+    )
+
+    # Set up third level ConversationHandler (collecting features)
+    performances_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(select_performance, pattern='^' + str(PERFORMANCE) + '$')],
+
+        states={
+            SELECTING_FEATURE: [CallbackQueryHandler(ask_for_input,
+                                                     pattern='^' + str(POT_SBARRA) + '$|^' + str(SOSPENSIONI) + '$')],
+            TYPING: [MessageHandler(Filters.text & ~Filters.command, save_input_performance)],
+        },
+
+        fallbacks=[
+            CallbackQueryHandler(end_second_level, pattern='^' + str(END) + '$'),
             CommandHandler('stop', stop_nested)
         ],
 
@@ -608,6 +634,37 @@ def main():
         }
     )
 
+    # Set up second level ConversationHandler (adding a person)
+    add_performance = ConversationHandler(
+        entry_points=[CallbackQueryHandler(ask_for_name_input,
+                                           pattern='^' + str(ADDING_PERFORMANCE) + '$')],
+        states={
+
+            ADDING_NAME: [CallbackQueryHandler(ask_for_name_input,
+                                                     pattern='^' + str(NAME) + '$')],
+
+            TYPING: [MessageHandler(Filters.text & ~Filters.command, select_name_for_perf)],
+
+            SELECTING_PERFORMANCE : [performances_conv]
+
+        },
+
+        fallbacks=[
+            #CommandHandler('back', end_second_level),
+            CallbackQueryHandler(end_second_level, pattern='^' + str(END) + '$'),
+            CommandHandler('stop', stop_nested)
+        ],
+
+        map_to_parent={
+            # After showing data return to top level menu
+            SHOWING: SHOWING,
+            # Return to top level menu
+            END: SELECTING_ACTION,
+            # End conversation alltogether
+            STOPPING: END,
+        }
+    )
+
     # Set up top level ConversationHandler (selecting action)
     # Because the states of the third level conversation map to the ones of the econd level
     # conversation, we need to make sure the top level conversation can also handle them
@@ -615,7 +672,8 @@ def main():
         add_athlete_conv,
         #CallbackQueryHandler(show_data, pattern='^' + str(SHOWING) + '$'),
         show_athletes,
-        CallbackQueryHandler(adding_self, pattern='^' + str(ADDING_SELF) + '$'),
+        #CallbackQueryHandler(adding_self, pattern='^' + str(ADDING_SELF) + '$'),
+        add_performance,
         CallbackQueryHandler(end, pattern='^' + str(END) + '$'),
     ]
     conv_handler = ConversationHandler(
@@ -625,7 +683,6 @@ def main():
             SHOWING: [CallbackQueryHandler(start, pattern='^' + str(END) + '$')],
             SELECTING_ACTION: selection_handlers,
             SELECTING_LEVEL: selection_handlers,
-            DESCRIBING_SELF: [description_conv],
             STOPPING: [CommandHandler('start', start)],
         },
 
