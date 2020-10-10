@@ -35,7 +35,7 @@ CURRENT_DAY, SELECT_DAY, TODAY, WRITE_DAY = "CURRENT_DAY", "SELECT_DAY", "TODAY"
 
 ATHLETE, CONTINUE, MOVE_TO_PERF, PLOT_PERFORMANCE = "ATHLETE", "CONTINUE", "MOVE_TO_PERF", "PLOT_PERFORMANCE"
 
-COLORI, BAR_PLOT_COLOR, CHOOSE_COLORS = "COLORI", "BAR_PLOT_COLOR", "CHOOSE_COLORS"
+COLORI, BAR_PLOT_COLOR, CHOOSE_COLORS, SELECTING_DIMENSION, CARICO = "COLORI", "BAR_PLOT_COLOR", "CHOOSE_COLORS", "SELECTING_DIMENSION", "CARICO"
 
 class Graphic_Utils:
 
@@ -121,8 +121,13 @@ class Graphic_Utils:
         if type(athletes) == str:
             athletes = [athletes]
 
-        print(date_range, athletes)
-        #plot maximum for each athlete in the day
+        load_allowed = None
+        if CARICO in data.keys():
+            load_allowed = data[CARICO]
+
+
+        print(load_allowed)
+
 
         plot_dict = {}
         plot_dict = plot_dict.fromkeys(athletes)
@@ -141,11 +146,21 @@ class Graphic_Utils:
             while start <= end:
                 day = str(start.day) + "/" + str(start.month) + "/" + str(start.year)
                 if day in data[ATHLETES][key][PERFORMANCE].keys():
-                    plot_dict[key]["days"].append(day)
+
                     max_pow = max(data[ATHLETES][key][PERFORMANCE][day][POT_SBARRA][POWER])
                     ind = data[ATHLETES][key][PERFORMANCE][day][POT_SBARRA][POWER].index(max_pow)
-                    plot_dict[key]["pow"].append(max_pow)
-                    plot_dict[key]["kg"].append(data[ATHLETES][key][PERFORMANCE][day][POT_SBARRA][KILOS][ind])
+                    kg = data[ATHLETES][key][PERFORMANCE][day][POT_SBARRA][KILOS][ind]
+
+                    if load_allowed is None or kg in load_allowed:
+                        plot_dict[key]["days"].append(day)
+                        plot_dict[key]["pow"].append(max_pow)
+                        plot_dict[key]["kg"].append(kg)
+
+                    elif load_allowed is not None and kg not in load_allowed:
+                        plot_dict[key]["days"].append(day)
+                        plot_dict[key]["pow"].append(0)
+                        plot_dict[key]["kg"].append(0)
+
                 else:
                     plot_dict[key]["days"].append(day)
                     plot_dict[key]["pow"].append(0)

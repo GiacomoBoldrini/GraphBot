@@ -22,6 +22,7 @@ import numpy as np
 import math as mt
 from io import StringIO
 import os
+from Graphics import Graphic_Utils
 
 from telegram import (InlineKeyboardMarkup, InlineKeyboardButton)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
@@ -58,7 +59,9 @@ POT_SBARRA, SOSPENSIONI, KILOS, POWER, DIMENSION, SECONDS  = "POT_SBARRA", "SOSP
 
 CURRENT_DAY, SELECT_DAY, TODAY, WRITE_DAY = "CURRENT_DAY", "SELECT_DAY", "TODAY", "WRITE_DAY"
 
-ATHLETE, CONTINUE, MOVE_TO_PERF = "ATHLETE", "CONTINUE", "MOVE_TO_PERF"
+ATHLETE, CONTINUE, MOVE_TO_PERF, PLOT_PERFORMANCE = "ATHLETE", "CONTINUE", "MOVE_TO_PERF", "PLOT_PERFORMANCE"
+
+COLORI, BAR_PLOT_COLOR, CHOOSE_COLORS, SELECTING_DIMENSION, CARICO = "COLORI", "BAR_PLOT_COLOR", "CHOOSE_COLORS", "SELECTING_DIMENSION", "CARICO"
 
 #--------------Plotters----------------
 def autolabel(ax, rects, weights):
@@ -186,6 +189,7 @@ def start(update, context):
     ],
     [
         InlineKeyboardButton(text='TEST', callback_data=str(TEST)),
+        InlineKeyboardButton(text='Grafico Performances', callback_data=str(PLOT_PERFORMANCE)),
     ]]
     keyboard = InlineKeyboardMarkup(buttons)
 
@@ -288,7 +292,8 @@ def end_second_level(update, context):
 
 def end_day_level(update, context):
     """Return to top level conversation."""
-    context.user_data[START_OVER] = True
+    #context.user_data[START_OVER] = True
+    context.user_data[START_OVER] = False
     ask_for_name(update, context)
 
     return END
@@ -344,9 +349,13 @@ def select_performance(update, context):
     if not context.user_data.get(START_OVER):
         #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
         text = 'Selezionare un attributo da aggiornare'
-
+        #try:
         update.callback_query.answer()
         update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+        #except:
+            #this means that the text in the update to the query is unchanged
+            #pass
+
     # But after we do that, we need to send a new message
     else:
         text = 'Selezionare un attributo da aggiornare'
@@ -356,7 +365,46 @@ def select_performance(update, context):
     return SELECTING_FEATURE
 
 
+def select_performance_to_plot(update, context):
+    """Select a feature to update for the person."""
+    buttons = [[
+        InlineKeyboardButton(text='Potenza Trazioni', callback_data=str(POT_SBARRA)),
+        InlineKeyboardButton(text='Sospensioni', callback_data=str(SOSPENSIONI)),
+        InlineKeyboardButton(text='Cambia Colori', callback_data=str(COLORI)),
+    ], 
+    [
+        InlineKeyboardButton(text='Carico', callback_data=str(CARICO)),
+        InlineKeyboardButton(text='Dimensioni Tacca', callback_data=str(DIMENSION)),
+        InlineKeyboardButton(text='Indietro', callback_data=str(END)),
+    ]]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    # If we collect features for a new person, clear the cache and save the gender
+    if not context.user_data.get(START_OVER):
+        #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
+        text = 'Selezionare un attributo da aggiornare'
+        try:
+            update.callback_query.answer()
+            update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+        except:
+            #this means that the text in the update to the query is unchanged
+            pass
+
+    # But after we do that, we need to send a new message
+    else:
+        text = 'Selezionare un attributo da plottare.' \
+                '\n Se vuoi cambiare i colori, sceglili da qui: https://matplotlib.org/3.1.0/gallery/color/named_colors.html' \
+                '\n e scrivili come una lista separata da virgole'\
+                '\n esempio: dodgerblue,fuchsia,green,darkolivegreen.' \
+                '\n se vuoi resettare digita \"Reset\".'
+        update.message.reply_text(text=text, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+    return SELECTING_FEATURE
+
+
 def select_day(update, context):
+
     """Select a feature to update for the person."""
     buttons = [[
         InlineKeyboardButton(text='Oggi', callback_data=str(TODAY)),
@@ -367,22 +415,31 @@ def select_day(update, context):
     ]]
     keyboard = InlineKeyboardMarkup(buttons)
 
-    """
-    # If we collect features for a new person, clear the cache and save the gender
-    if not context.user_data.get(START_OVER):
-        #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
-        text = 'Selezionare'
-
-        update.callback_query.answer()
-        update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
-    # But after we do that, we need to send a new message
-    else:
-        text = 'Selezionare'
-        update.message.reply_text(text=text, reply_markup=keyboard)
-    """
-
     #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
     text = 'Seleziona se inserire dati per oggi oppure per un allenamento passato'
+
+    update.callback_query.answer()
+    update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    
+
+    context.user_data[START_OVER] = False
+    return SELECT_DAY
+
+
+def select_day_perf(update, context):
+
+    """Select a feature to update for the person."""
+    buttons = [[
+        InlineKeyboardButton(text='Oggi', callback_data=str(TODAY)),
+        InlineKeyboardButton(text='Scrivi Range Date', callback_data=str(WRITE_DAY)),
+    ], 
+    [
+        InlineKeyboardButton(text='Indietro', callback_data=str(END)),
+    ]]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
+    text = 'Seleziona se visualizzare dati per oggi oppure per allenamenti passati'
 
     update.callback_query.answer()
     update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
@@ -399,6 +456,8 @@ def ask_for_input(update, context):
     if update.callback_query.data in [POT_SBARRA, SOSPENSIONI]:
         text = 'Okay, Scrivi info per {}'.format(_performance_switcher(update.callback_query.data))
 
+    elif update.callback_query.data == COLORI:
+        text = "Okay inserisci la lista di colori"
     else:
         text = 'Okay, Scrivi info per {}'.format(_feature_switcher(update.callback_query.data))
 
@@ -457,6 +516,32 @@ def ask_for_day(update, context):
 
         return TYPING
 
+
+def ask_for_day_perf(update, context):
+
+    if update.callback_query.data == TODAY:
+
+        context.user_data[CURRENT_DAY] = str(datetime.date.today().day) + "/" + str(datetime.date.today().month) + "/" + str(datetime.date.today().year)
+        buttons = [[
+            InlineKeyboardButton(text='Seleziona Performances', callback_data=str(CONTINUE)),
+        ]]
+        keyboard = InlineKeyboardMarkup(buttons)
+
+        text = 'Ok, visualizzo performances per {}'.format(context.user_data[CURRENT_DAY])
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+
+        return MOVE_TO_PERF
+
+    elif update.callback_query.data == WRITE_DAY:
+
+        text = 'Inserisci il range di date come giorno1/mese1/anno1,giorno2/mese2/anno2'\
+                'esempio: 21/10/2018,22/11/2019'
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text)
+
+        return TYPING
+
 def ask_for_day_input(update, context):
 
     ud = context.user_data
@@ -473,23 +558,118 @@ def ask_for_day_input(update, context):
     context.user_data[START_OVER] = False
 
     return MOVE_TO_PERF
-   
 
-def ask_for_name(update, context):
-    """Ask athlete name through a button"""
-    level = update.callback_query.data
-    context.user_data[CURRENT_LEVEL] = level
+
+def ask_for_day_input_perf(update, context):
+
+    ud = context.user_data
+    ud[CURRENT_DAY] = update.message.text.split(',')
 
     buttons = [[
-        InlineKeyboardButton(text='Scrivi Nome', callback_data=str(NAME)),
-        InlineKeyboardButton(text='Indietro', callback_data=str(END))
+        InlineKeyboardButton(text='Continua', callback_data=str(CONTINUE)),
     ]]
     keyboard = InlineKeyboardMarkup(buttons)
 
-    text = 'Premi "Scrivi Nome" per scrivere il nome. Se è presente nel database verrà aggiornato \naltrimenti verrà creato.\nPremi indietro per tronare al menu principale'
+    text = 'Ok, visualizzo performances nel range {}'.format(context.user_data[CURRENT_DAY])
+    update.message.reply_text(text=text, reply_markup=keyboard)
 
-    update.callback_query.answer()
-    update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+    context.user_data[START_OVER] = False
+
+    return MOVE_TO_PERF
+
+
+def plot_performances_(update, context):
+
+    ud = context.user_data
+    level = update.callback_query.data
+
+    if level in [POT_SBARRA, SOSPENSIONI]:
+
+        if level == POT_SBARRA:
+            fig, ax = Graphic_Utils.plot_power(ud, ud[ATHLETE], ud[CURRENT_DAY])
+
+        fig.tight_layout()
+        fig.savefig("./plot.png")
+
+        #sending the image
+        update.callback_query.bot.send_photo(chat_id=update.callback_query.message.chat_id, photo=open("./plot.png", "rb"))
+
+        #removing to be clean. Is this the better way?
+        os.remove("./plot.png")
+
+        context.user_data[START_OVER] = False
+
+        return select_performance_to_plot(update, context)
+
+    elif level == COLORI:
+
+        ud[CURRENT_LEVEL] = COLORI
+
+        text = 'Inserisci i colori'
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text)
+
+        return TYPING
+
+    elif level == CARICO:
+
+        ud[CURRENT_LEVEL] = CARICO
+
+        text = 'Inserisci i/il carico (Kg) separati da una virgola. \nEsempio: 20,30,50'
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text)
+
+        return TYPING
+
+    elif level == DIMENSION:
+
+        ud[CURRENT_LEVEL] = DIMENSION
+
+        text = 'Inserisci la/le dimensioni tacche (mm) separate da una virgola. \nEsempio: 6,10,14'
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text)
+
+        return TYPING
+
+
+def ask_for_name(update, context):
+    """Ask athlete name through a button"""
+
+    if not context.user_data[START_OVER]:
+        level = update.callback_query.data
+        context.user_data[CURRENT_LEVEL] = level
+
+        buttons = [[
+            InlineKeyboardButton(text='Scrivi Nome', callback_data=str(NAME)),
+            InlineKeyboardButton(text='Indietro', callback_data=str(END))
+        ]]
+        keyboard = InlineKeyboardMarkup(buttons)
+
+        text = 'Premi "Scrivi Nome" per scrivere il nome. Se è presente nel database verrà aggiornato \naltrimenti verrà creato.\nPremi indietro per tronare al menu principale'
+
+        if level==PLOT_PERFORMANCE:
+            buttons = [[
+                InlineKeyboardButton(text='Scrivi Nomi', callback_data=str(NAME)),
+                InlineKeyboardButton(text='Indietro', callback_data=str(END))
+            ]]
+            keyboard = InlineKeyboardMarkup(buttons)
+
+            text = 'Premi "Scrivi Nomi" per scrivere i nomi degli atleti.\nSeparali da una virgola per effettuare una comparazione.\nEsempio: Giacomo,Giulia'
+
+        update.callback_query.answer()
+        update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+
+    else:
+        buttons = [[
+            InlineKeyboardButton(text='Scrivi Nomi', callback_data=str(NAME)),
+            InlineKeyboardButton(text='Indietro', callback_data=str(END))
+        ]]
+        keyboard = InlineKeyboardMarkup(buttons)
+
+        text = 'Premi "Scrivi Nomi" per scrivere i nomi degli atleti.\nSeparali da una virgola per effettuare una comparazione.\nEsempio: Giacomo,Giulia'
+
+        update.message.reply_text(text=text, reply_markup=keyboard)
+
 
     return ADDING_NAME
 
@@ -523,6 +703,41 @@ def save_input(update, context):
     return select_feature(update, context)
 
 
+def save_input_plot(update, context):
+    """Save input for feature and return to feature selection."""
+    ud = context.user_data
+
+    if ud[CURRENT_LEVEL] == COLORI:
+        if update.message.text != "Reset":
+            ud[COLORI] = update.message.text.split(',')
+
+            text = "Update tabella colori: {}".format(update.message.text)
+            update.message.reply_text(text=text)
+        
+        else:
+            if COLORI in ud.keys():
+                del ud[CURRENT_LEVEL]
+            text = "Reset tabella colori"
+            update.message.reply_text(text=text)
+
+
+    elif ud[CURRENT_LEVEL] in [CARICO, DIMENSION]:
+
+        if update.message.text != "Reset":
+            ud[ud[CURRENT_LEVEL]] = [float(i) for i in update.message.text.split(',')]
+        
+        else:
+            if ud[CURRENT_LEVEL] in ud.keys():
+                del ud[CURRENT_LEVEL]
+            text = "Reset attributo richiesto"
+            update.message.reply_text(text=text)
+
+        
+
+    ud[START_OVER] = True
+    return select_performance_to_plot(update, context)
+
+
 def save_name(update, context):
     """Save input for feature and return to feature selection."""
     ud = context.user_data
@@ -554,11 +769,51 @@ def save_name(update, context):
     return SELECTING_FEAT
 
 
+def select_name_for_perf_2(update, context):
+    """Save input for feature and return to feature selection."""
+    ud = context.user_data
+    ud[CURRENT_FEATURE] = update.message.text
+    ud[ATHLETE] = update.message.text.split(',')
+
+    if not all(elem in ud[ATHLETES].keys()  for elem in ud[ATHLETE]):
+
+        text = 'Alcuni di questi atleti non sono presenti nel database. Ricontrolla'
+        update.message.reply_text(text=text)
+
+        context.user_data[START_OVER] = True
+        return ask_for_name(update, context)
+
+
+    else:
+        text = 'Plotto performances per l\'atleta: {}'.format(update.message.text)
+
+    #ud[START_OVER] = True
+
+    
+    update.message.reply_text(text=text)
+
+    buttons = [[
+        InlineKeyboardButton(text='Plotta Performance {}'.format(update.message.text), callback_data=str(PERFORMANCE)),
+    ]]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    text = 'Per favore, scegli tra le opzioni qui sotto:'
+    update.message.reply_text(text=text, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+
+    return SELECTING_PERFORMANCE
+
+
 def select_name_for_perf(update, context):
     """Save input for feature and return to feature selection."""
     ud = context.user_data
     ud[CURRENT_FEATURE] = update.message.text
     ud[ATHLETE] = update.message.text
+
+    buttons = [[
+        InlineKeyboardButton(text='Aggiungi Performance {}'.format(update.message.text), callback_data=str(PERFORMANCE)),
+    ]]
 
     if ud[CURRENT_FEATURE] not in ud[ATHLETES].keys():
         ud[ATHLETES][ud[CURRENT_FEATURE]] = {}
@@ -569,6 +824,9 @@ def select_name_for_perf(update, context):
         ud[ATHLETES][ud[CURRENT_FEATURE]][PERFORMANCE] = {}
         text = 'Creo spazio performance per atleta: {}'.format(update.message.text)
     else:
+        buttons = [[
+            InlineKeyboardButton(text='Aggiorna Performance {}'.format(update.message.text), callback_data=str(PERFORMANCE)),
+        ]]
         text = 'Aggiorno performances per l\'atleta: {}'.format(update.message.text)
 
     #ud[START_OVER] = True
@@ -576,9 +834,6 @@ def select_name_for_perf(update, context):
     
     update.message.reply_text(text=text)
 
-    buttons = [[
-        InlineKeyboardButton(text='Aggiungi Performance', callback_data=str(PERFORMANCE)),
-    ]]
     keyboard = InlineKeyboardMarkup(buttons)
 
     text = 'Per favore, scegli tra le opzioni qui sotto:'
@@ -591,7 +846,7 @@ def select_name_for_perf(update, context):
 def save_input_feature(update, context):
     """Save input for feature and return to feature selection."""
     ud = context.user_data
-    level = _feature_switcher(ud[CURRENT_FEATURE])
+    level = ud[CURRENT_FEATURE]
 
     #level = update.callback_query.data
     ud[ATHLETES][ud[ATHLETE]][level] = update.message.text
@@ -621,10 +876,6 @@ def save_power(update, context):
 
     ud = context.user_data
 
-    #if it is the first time create the dict
-    if POT_SBARRA not in ud[ATHLETES][ud[ATHLETE]][PERFORMANCE].keys():
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][POT_SBARRA] = {}
-
     kilos = []
     power =  []
     data = update.message.text
@@ -639,12 +890,18 @@ def save_power(update, context):
                 elif "P" in item:
                     power.append(float(item.split("P:")[1]))
 
-    if ud[CURRENT_DAY] in ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][POT_SBARRA].keys():
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][POT_SBARRA][ud[CURRENT_DAY]][KILOS] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][POT_SBARRA][ud[CURRENT_DAY]][KILOS] + kilos
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][POT_SBARRA][ud[CURRENT_DAY]][POWER] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][POT_SBARRA][ud[CURRENT_DAY]][POWER] + power
+    if ud[CURRENT_DAY] in ud[ATHLETES][ud[ATHLETE]][PERFORMANCE].keys():
+
+        #if it is the first time create the dict
+        if POT_SBARRA not in ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]].keys():
+            ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][POT_SBARRA] = {}
+
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][POT_SBARRA][KILOS] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][POT_SBARRA][KILOS] + kilos
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][POT_SBARRA][POWER] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][POT_SBARRA][POWER] + power
 
     else:
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][POT_SBARRA][ud[CURRENT_DAY]] = {KILOS: kilos, POWER: power}
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]] = {}
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][POT_SBARRA] = {KILOS: kilos, POWER: power}
 
     ud[START_OVER] = True
 
@@ -657,10 +914,6 @@ def save_sosp(update, context):
     """ Save Power in the appropriate format """
 
     ud = context.user_data
-
-    #if it is the first time create the dict
-    if SOSPENSIONI not in ud[ATHLETES][ud[ATHLETE]][PERFORMANCE].keys():
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI] = {}
 
     dimension = []
     kilos = []
@@ -679,13 +932,19 @@ def save_sosp(update, context):
                 elif "S" in item:
                     seconds.append(float(item.split("S:")[1]))
 
-    if ud[CURRENT_DAY] in ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI].keys():
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI][ud[CURRENT_DAY]][KILOS] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI][ud[CURRENT_DAY]][KILOS] + kilos
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI][ud[CURRENT_DAY]][DIMENSION] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI][ud[CURRENT_DAY]][DIMENSION] + dimension
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI][ud[CURRENT_DAY]][SECONDS] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI][ud[CURRENT_DAY]][SECONDS] + seconds
+    if ud[CURRENT_DAY] in ud[ATHLETES][ud[ATHLETE]][PERFORMANCE].keys():
+
+        #if it is the first time create the dict
+        if SOSPENSIONI not in ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]].keys():
+            ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][SOSPENSIONI] = {}
+
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][SOSPENSIONI][KILOS] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][SOSPENSIONI][KILOS] + kilos
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][SOSPENSIONI][DIMENSION] = ud[ATHLETES][ud[ATHLETE]][SOSPENSIONI][ud[CURRENT_DAY]][PERFORMANCE][DIMENSION] + dimension
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][SOSPENSIONI][SECONDS] = ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][SOSPENSIONI][SECONDS] + seconds
 
     else:
-        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][SOSPENSIONI][ud[CURRENT_DAY]] = {DIMENSION: dimension, KILOS: kilos, SECONDS: seconds}
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]] = {}
+        ud[ATHLETES][ud[ATHLETE]][PERFORMANCE][ud[CURRENT_DAY]][SOSPENSIONI] = {DIMENSION: dimension, KILOS: kilos, SECONDS: seconds}
 
     ud[START_OVER] = True
 
@@ -893,7 +1152,7 @@ def end_describing(update, context):
         select_level(update, context)
 
     """
-    ud[START_OVER] = True
+    ud[START_OVER] = False
     ask_for_name(update, context)
 
     return END
@@ -935,6 +1194,10 @@ def main():
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
 
+    #-------------------------------------------------------------
+    #-----------------Conversazione Per attributi-----------------
+    #-------------------------------------------------------------
+    
     # Set up third level ConversationHandler (collecting features)
     description_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(select_feature_2, pattern='^' + str(ADD_FEATURES) + '$')],
@@ -991,6 +1254,11 @@ def main():
     )
 
 
+    #-------------------------------------------------------------
+    #------------Conversazione Per Mostrare attributi-------------
+    #-------------------------------------------------------------
+
+
     # Set up second level ConversationHandler (adding a person)
     show_athletes = ConversationHandler(
         entry_points=[CallbackQueryHandler(ask_for_name_input,
@@ -1016,6 +1284,10 @@ def main():
             STOPPING: END,
         }
     )
+
+    #-------------------------------------------------------------
+    #-----------------Conversazione Per Performances--------------
+    #-------------------------------------------------------------
 
 
     # Set up third level ConversationHandler (collecting features)
@@ -1110,12 +1382,111 @@ def main():
         }
     )
 
+
+    #-------------------------------------------------------------
+    #-----------------Conversazione Per Plottare------------------
+    #-------------------------------------------------------------
+
+
+
+    plot_performances = ConversationHandler(
+        entry_points=[CallbackQueryHandler(select_performance_to_plot, pattern='^' + str(CONTINUE) + '$')],
+
+        states={
+
+            SELECTING_FEATURE: [CallbackQueryHandler(plot_performances_,
+                                                     pattern='^' + str(POT_SBARRA) + '$|^' + str(SOSPENSIONI) + '$|^' + str(COLORI) + '$|^' + str(CARICO) + '$|^' + str(DIMENSION) + '$')],
+
+            TYPING: [MessageHandler(Filters.text & ~Filters.command, save_input_plot)],
+        },
+
+        fallbacks=[
+            CallbackQueryHandler(end_performing, pattern='^' + str(END) + '$'),
+            CommandHandler('stop', stop_nested)
+        ],
+
+        map_to_parent={
+            # Return to second level menu
+            END: SELECT_DAY,
+            # End conversation alltogether
+            STOPPING: STOPPING,
+        }
+    )
+
+
+
+    # Set up third level ConversationHandler (collecting features)
+    day_conv_perf = ConversationHandler(
+        #entry_points=[CallbackQueryHandler(select_performance, pattern='^' + str(PERFORMANCE) + '$')],
+        entry_points=[CallbackQueryHandler(select_day_perf, pattern='^' + str(PERFORMANCE) + '$')],
+
+        states={
+
+            SELECT_DAY : [CallbackQueryHandler(ask_for_day_perf,
+                                                     pattern='^' + str(TODAY) + '$|^' + str(WRITE_DAY) + '$')],
+
+            TYPING: [MessageHandler(Filters.text & ~Filters.command, ask_for_day_input_perf)],
+
+
+            MOVE_TO_PERF: [plot_performances],
+            
+        },
+
+        fallbacks=[
+            CallbackQueryHandler(end_day_level, pattern='^' + str(END) + '$'),
+            CommandHandler('stop', stop_nested)
+        ],
+
+        map_to_parent={
+            # Return to top level menu
+            END: ADDING_NAME,
+            # End conversation alltogether
+            STOPPING: STOPPING,
+        }
+    )
+
+    # Set up first level ConversationHandler (adding a person)
+    plot_performances_conv = ConversationHandler(
+        entry_points=[CallbackQueryHandler(ask_for_name,
+                                           pattern='^' + str(PLOT_PERFORMANCE) + '$')],
+        states={
+
+            ADDING_NAME: [CallbackQueryHandler(ask_for_name_input,
+                                                     pattern='^' + str(NAME) + '$')],
+
+            TYPING: [MessageHandler(Filters.text & ~Filters.command, select_name_for_perf_2)],
+
+            SELECTING_PERFORMANCE : [day_conv_perf]
+
+        },
+
+        fallbacks=[
+            #CommandHandler('back', end_second_level),
+            CallbackQueryHandler(end_second_level, pattern='^' + str(END) + '$'),
+            CommandHandler('stop', stop_nested)
+        ],
+
+        map_to_parent={
+            # After showing data return to top level menu
+            SHOWING: SHOWING,
+            # Return to top level menu
+            END: SELECTING_ACTION,
+            # End conversation alltogether
+            STOPPING: END,
+        }
+    )
+
+
+    #-------------------------------------------------------------
+    #-----------------------Menu Principale-----------------------
+    #-------------------------------------------------------------
+
     # Set up top level ConversationHandler (selecting action)
     # Because the states of the third level conversation map to the ones of the econd level
     # conversation, we need to make sure the top level conversation can also handle them
     selection_handlers = [
         add_athlete_conv,
-        #show_performances_conv,
+        plot_performances_conv,
         #CallbackQueryHandler(show_data, pattern='^' + str(SHOWING) + '$'),
         show_athletes,
         #CallbackQueryHandler(adding_self, pattern='^' + str(ADDING_SELF) + '$'),
