@@ -113,6 +113,128 @@ class Graphic_Utils:
         return fig, ax
 
 
+
+    def generate_point_suspension(athlete_dict, attrs, extra=None, convert_lab=None, colors=None):
+
+        """
+            athlete_dict is something like
+            {"Giacomo": {"day": [], "pow": [], "kg": []}}
+
+            attrs is a list fo two elements [x_lab, y_values] to be taken from athlete_dict
+            for example ["day", "pow"]
+
+            extra is used to plot something on top of the bars froma thlete_dict
+
+            convert_lab is a dict storing axis title from attrs
+
+        """
+        #assert len(athlete_dict.keys()) == 1, print("Error")
+
+        athletes = list(athlete_dict.keys()) #athlete names
+        num_ath = len(athletes)
+        fig, ax = plt.subplots(dpi = 320, figsize=(10,6))
+
+        plot_dict = {}
+        plot_dict = plot_dict.fromkeys(athletes)
+        for key in plot_dict.keys():
+            plot_dict[key] = {}
+            plot_dict[key] = plot_dict[key].fromkeys(np.unique(athlete_dict[key]["dim"]))
+
+            for dims in np.unique(athlete_dict[key]["dim"]):
+                plot_dict[key][dims] = {"time": [], "kg": [], "day": []}
+
+        col_id = 0
+
+        for idx, at_name in enumerate(athletes):
+
+            num_load = len(np.unique(athlete_dict[at_name]["kg"]))
+            num_dim = len(np.unique(athlete_dict[at_name]["dim"]))
+
+
+            x_lab = athlete_dict[at_name][attrs[0]] #select the one with more days
+            y_val = athlete_dict[at_name][attrs[1]] #select attribute 1
+            z_val = athlete_dict[at_name][attrs[2]] #select attribute 2 
+            c_val = athlete_dict[at_name][extra]
+
+            for i in range(len(x_lab)):
+                day_ = x_lab[i]* len(y_val[i])
+                times_ = y_val[i]
+                dims_ = z_val[i]
+                kgs_ = c_val[i]
+
+
+                for id_ in range(len(day_)):
+                    if type(times_[id_]) == type(kgs_[id_]) == type(day_[id_]) == list:
+                        plot_dict[at_name][dims_[id_]]["time"] += times_[id_]
+                        plot_dict[at_name][dims_[id_]]["kg"] += kgs_[id_]
+                        plot_dict[at_name][dims_[id_]]["day"] += day_[id_]
+                    else:
+                        plot_dict[at_name][dims_[id_]]["time"].append(times_[id_])
+                        plot_dict[at_name][dims_[id_]]["kg"].append(kgs_[id_])
+                        plot_dict[at_name][dims_[id_]]["day"].append(day_[id_])
+
+            
+            print(plot_dict)
+            
+            #if there is the dimension 0 it means that we do not have data for that day (filling everything with 0)
+            #but it will save it as a new dimension. We cycle on the days without data and for each other dimension
+            #if the "0" day is not present we fill the 0 for kg and time. Then we delete the dim=0 data
+
+            if 0 in plot_dict[at_name].keys():
+                #extending each dimension with the empty ones
+                for i in range(len(plot_dict[at_name][0]["day"])):
+                    day = plot_dict[at_name][0]["day"][i]
+
+                    for key in plot_dict[at_name].keys():
+                        if key != 0:
+                            if day not in plot_dict[at_name][key]["day"]:
+                                plot_dict[at_name][key]["day"].append(day)
+                                plot_dict[at_name][key]["time"].append(0)
+                                plot_dict[at_name][key]["kg"].append(0)
+
+                print(plot_dict)
+
+                #deleting the empty (dim = 0)
+                del plot_dict[at_name][0]
+
+                print(plot_dict)
+
+            for key in plot_dict[at_name].keys():
+                label_ = at_name + " Dimension: {} mm".format(str(key))
+
+                x = np.arange(len(plot_dict[at_name][key]["day"]))
+                y = plot_dict[at_name][key]["time"] 
+                txt = plot_dict[at_name][key]["kg"]
+
+                if colors is not None and col_id < len(colors):
+                    scat = ax.plot(x, y, label=label_, color=colors[idx], markersize=10, marker='o')
+                else:
+                    scat = ax.plot(x, y, label=label_, markersize=10, marker='o')
+
+                for ind, txt_ in enumerate(txt):
+                    ax.annotate("Kg: {}".format(txt_), (x[ind] + 0.03, y[ind]+0.06), fontsize=10)
+                    #ax.text(x * (1 + 0.02), y , i, fontsize=12)
+
+                ax.set_xticks(x)
+                ax.set_xticklabels(plot_dict[at_name][key]["day"], fontsize=8)
+                ax.legend()
+
+                col_id += 1
+
+
+            # Add some text for labels, title and custom x-axis tick labels, etc.
+            if convert_lab is None:
+                ax.set_ylabel("time")
+                ax.set_xlabel("days")
+            else:
+                ax.set_ylabel(convert_lab["time"])
+                ax.set_xlabel(convert_lab["days"])
+        
+        fig.tight_layout()
+
+        return fig, ax
+
+
     def plot_power(data, athletes, date_range):
 
         if len(date_range) == 1:
@@ -125,8 +247,6 @@ class Graphic_Utils:
         if CARICO in data.keys():
             load_allowed = data[CARICO]
 
-
-        print(load_allowed)
 
 
         plot_dict = {}
@@ -174,6 +294,91 @@ class Graphic_Utils:
             fig, ax = Graphic_Utils.generate_bar_power(plot_dict, ["days", "pow"], extra="kg", convert_lab={"days": "days", "pow": "Power (W)"}, colors=data[COLORI])
         else:
             fig, ax = Graphic_Utils.generate_bar_power(plot_dict, ["days", "pow"], extra="kg", convert_lab={"days": "days", "pow": "Power (W)"})
+
+        
+        return fig, ax
+
+
+    def plot_suspensions(data, athletes, date_range):
+
+        if len(date_range) == 1:
+            date_range = date_range*2
+
+        if type(athletes) == str:
+            athletes = [athletes]
+
+        load_allowed = None
+        len_alload = 0
+        if CARICO in data.keys():
+            load_allowed = data[CARICO]
+            len_alload = len(data[CARICO])
+
+        dimension_allowed = None
+        len_aldim = 0
+        if DIMENSION in data.keys():
+            dimension_allowed = data[DIMENSION]
+            len_aldim = len(data[DIMENSION])
+            
+
+        plot_dict = {}
+        plot_dict = plot_dict.fromkeys(athletes)
+        for key in plot_dict:
+            plot_dict[key] = {}
+            plot_dict[key]["days"] = []
+            plot_dict[key]["time"] = []
+            plot_dict[key]["dim"] = []
+            plot_dict[key]["kg"] = []   
+
+        for key in plot_dict:
+            start = datetime.datetime.strptime(date_range[0], '%d/%m/%Y')
+            end = datetime.datetime.strptime(date_range[1], '%d/%m/%Y')
+            step = datetime.timedelta(days=1)
+            while start <= end:
+                day = str(start.day) + "/" + str(start.month) + "/" + str(start.year)
+                if day in data[ATHLETES][key][PERFORMANCE].keys():
+                    
+                    allowed_time = []  
+                    allowed_dim = []
+                    allowed_kg = []
+
+                    for i in range(len(data[ATHLETES][key][PERFORMANCE][day][SOSPENSIONI][SECONDS])):
+                        kg = data[ATHLETES][key][PERFORMANCE][day][SOSPENSIONI][KILOS][i]
+                        sec = data[ATHLETES][key][PERFORMANCE][day][SOSPENSIONI][SECONDS][i]
+                        dim = data[ATHLETES][key][PERFORMANCE][day][SOSPENSIONI][DIMENSION][i]
+
+                        if load_allowed is None or kg in load_allowed:
+                            if dimension_allowed is None or dim in dimension_allowed:
+                                allowed_time.append(sec)
+                                allowed_dim.append(dim)
+                                allowed_kg.append(kg)
+
+
+                    if len(allowed_kg) > 0 :
+                        plot_dict[key]["days"].append([day]*len(allowed_kg))
+                        plot_dict[key]["kg"].append(list(allowed_kg))
+                        plot_dict[key]["time"].append(list(allowed_time))
+                        plot_dict[key]["dim"].append(list(allowed_dim))
+
+                    else:
+                        plot_dict[key]["days"].append([day])
+                        plot_dict[key]["kg"].append([0])
+                        plot_dict[key]["time"].append([0])
+                        plot_dict[key]["dim"].append([0])
+
+                else:
+                    plot_dict[key]["days"].append([day])
+                    plot_dict[key]["kg"].append([0])
+                    plot_dict[key]["time"].append([0])
+                    plot_dict[key]["dim"].append([0])
+                
+                start += step
+
+        print(plot_dict)
+        
+        if COLORI in data.keys():
+            fig, ax = Graphic_Utils.generate_point_suspension(plot_dict, ["days", "time", "dim", "kg"], extra="kg", convert_lab={"days": "Day", "time": "Time (s)", "kg": "Load (Kg)", "dim": "Dimension (mm)"}, colors=data[COLORI])
+        else:
+            fig, ax = Graphic_Utils.generate_point_suspension(plot_dict, ["days", "time", "dim", "kg"], extra="kg", convert_lab={"days": "Day", "time": "Time (s)", "kg": "Load (Kg)", "dim": "Dimension (mm)"})
 
         
         return fig, ax
