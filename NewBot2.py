@@ -63,6 +63,8 @@ ATHLETE, CONTINUE, MOVE_TO_PERF, PLOT_PERFORMANCE = "ATHLETE", "CONTINUE", "MOVE
 
 COLORI, BAR_PLOT_COLOR, CHOOSE_COLORS, SELECTING_DIMENSION, CARICO = "COLORI", "BAR_PLOT_COLOR", "CHOOSE_COLORS", "SELECTING_DIMENSION", "CARICO"
 
+GRAPH_STYLES = "GRAPH_STYLES"
+
 #--------------Plotters----------------
 def autolabel(ax, rects, weights):
     """Attach a text label above each bar in *rects*, displaying its height."""
@@ -370,11 +372,12 @@ def select_performance_to_plot(update, context):
     buttons = [[
         InlineKeyboardButton(text='Potenza Trazioni', callback_data=str(POT_SBARRA)),
         InlineKeyboardButton(text='Sospensioni', callback_data=str(SOSPENSIONI)),
-        InlineKeyboardButton(text='Cambia Colori', callback_data=str(COLORI)),
+        #InlineKeyboardButton(text='Cambia Colori', callback_data=str(COLORI)),
     ], 
     [
-        InlineKeyboardButton(text='Carico', callback_data=str(CARICO)),
-        InlineKeyboardButton(text='Dimensioni Tacca', callback_data=str(DIMENSION)),
+        InlineKeyboardButton(text='Seleziona Carico', callback_data=str(CARICO)),
+        InlineKeyboardButton(text='Seleziona Dimensioni Tacca', callback_data=str(DIMENSION)),
+        InlineKeyboardButton(text='Stile Grafici', callback_data=str(GRAPH_STYLES)),
         InlineKeyboardButton(text='Indietro', callback_data=str(END)),
     ]]
     keyboard = InlineKeyboardMarkup(buttons)
@@ -401,6 +404,57 @@ def select_performance_to_plot(update, context):
 
     context.user_data[START_OVER] = False
     return SELECTING_FEATURE
+
+
+def change_style(update, context):
+    ud = context.user_data
+
+    if GRAPH_STYLES not in ud.keys():
+        ud[GRAPH_STYLES] = {}
+
+    ud[CURRENT_LEVEL] = GRAPH_STYLES
+
+    buttons = [[
+        InlineKeyboardButton(text='Cambia Colori', callback_data=str(COLORI)),
+        InlineKeyboardButton(text='Cambia Stile Punti', callback_data=str(COLORI)),
+        InlineKeyboardButton(text='Cambia Stile Linee', callback_data=str(COLORI)),
+    ], 
+    [   
+        InlineKeyboardButton(text='Cambia Dimensione Punti', callback_data=str(COLORI)),
+        InlineKeyboardButton(text='Cambia Dimensione Linee', callback_data=str(COLORI)),
+        InlineKeyboardButton(text='Cambia Dimensione Testo', callback_data=str(COLORI)),
+
+    ],
+    [
+        InlineKeyboardButton(text='Indietro', callback_data=str(END)),
+    ]]
+    keyboard = InlineKeyboardMarkup(buttons)
+
+    # If we collect features for a new person, clear the cache and save the gender
+    if not context.user_data.get(START_OVER):
+        #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
+        text = 'Selezionare un attributo da aggiornare'
+        try:
+            update.callback_query.answer()
+            update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
+        except:
+            #this means that the text in the update to the query is unchanged
+            pass
+
+    # But after we do that, we need to send a new message
+    else:
+        text = 'Selezionare un attributo da plottare.' \
+                '\n Se vuoi cambiare i colori, sceglili da qui: https://matplotlib.org/3.1.0/gallery/color/named_colors.html' \
+                '\n e scrivili come una lista separata da virgole'\
+                '\n esempio: dodgerblue,fuchsia,green,darkolivegreen.' \
+                '\n se vuoi resettare digita \"Reset\".'
+        update.message.reply_text(text=text, reply_markup=keyboard)
+
+    context.user_data[START_OVER] = False
+
+    return TYPING
+    
+
 
 
 def select_day(update, context):
@@ -588,6 +642,9 @@ def plot_performances_(update, context):
         if level == POT_SBARRA:
             fig, ax = Graphic_Utils.plot_power(ud, ud[ATHLETE], ud[CURRENT_DAY])
 
+        if level == SOSPENSIONI:
+            fig, ax = Graphic_Utils.plot_suspensions(ud, ud[ATHLETE], ud[CURRENT_DAY])
+
         fig.tight_layout()
         fig.savefig("./plot.png")
 
@@ -716,7 +773,7 @@ def save_input_plot(update, context):
         
         else:
             if COLORI in ud.keys():
-                del ud[CURRENT_LEVEL]
+                del ud[ud[CURRENT_LEVEL]]
             text = "Reset tabella colori"
             update.message.reply_text(text=text)
 
@@ -728,7 +785,7 @@ def save_input_plot(update, context):
         
         else:
             if ud[CURRENT_LEVEL] in ud.keys():
-                del ud[CURRENT_LEVEL]
+                del ud[ud[CURRENT_LEVEL]]
             text = "Reset attributo richiesto"
             update.message.reply_text(text=text)
 
@@ -1395,7 +1452,9 @@ def main():
         states={
 
             SELECTING_FEATURE: [CallbackQueryHandler(plot_performances_,
-                                                     pattern='^' + str(POT_SBARRA) + '$|^' + str(SOSPENSIONI) + '$|^' + str(COLORI) + '$|^' + str(CARICO) + '$|^' + str(DIMENSION) + '$')],
+                                                     pattern='^' + str(POT_SBARRA) + '$|^' + str(SOSPENSIONI) + '$|^' + str(COLORI) + '$|^' + str(CARICO) + '$|^' + str(DIMENSION) + '$'), 
+                                CallbackQueryHandler(change_style,
+                                                     pattern='^' + str(GRAPH_STYLES) + '$'),                      ],
 
             TYPING: [MessageHandler(Filters.text & ~Filters.command, save_input_plot)],
         },
