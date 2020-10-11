@@ -37,6 +37,10 @@ ATHLETE, CONTINUE, MOVE_TO_PERF, PLOT_PERFORMANCE = "ATHLETE", "CONTINUE", "MOVE
 
 COLORI, BAR_PLOT_COLOR, CHOOSE_COLORS, SELECTING_DIMENSION, CARICO = "COLORI", "BAR_PLOT_COLOR", "CHOOSE_COLORS", "SELECTING_DIMENSION", "CARICO"
 
+GRAPH_STYLES = "GRAPH_STYLES"
+
+TYPING_2, INPUT_STYLE, STILE_PUNTI, STILE_LINEE, DIMENSIONE_PUNTI, DIMENSIONE_LINEE, DIMENSIONE_TESTO = "TYPING_2", "INPUT_STYLE", "STILE_PUNTI", "STILE_LINEE", "DIMENSIONE_PUNTI", "DIMENSIONE_LINEE", "DIMENSIONE_TESTO"
+
 class Graphic_Utils:
 
     def autolabel(ax, rects, lab):
@@ -114,7 +118,7 @@ class Graphic_Utils:
 
 
 
-    def generate_point_suspension(athlete_dict, attrs, extra=None, convert_lab=None, colors=None):
+    def generate_point_suspension(athlete_dict, attrs, extra=None, convert_lab=None, styles=None):
 
         """
             athlete_dict is something like
@@ -128,7 +132,6 @@ class Graphic_Utils:
             convert_lab is a dict storing axis title from attrs
 
         """
-        #assert len(athlete_dict.keys()) == 1, print("Error")
 
         athletes = list(athlete_dict.keys()) #athlete names
         num_ath = len(athletes)
@@ -174,8 +177,6 @@ class Graphic_Utils:
                         plot_dict[at_name][dims_[id_]]["day"].append(day_[id_])
 
             
-            print(plot_dict)
-            
             #if there is the dimension 0 it means that we do not have data for that day (filling everything with 0)
             #but it will save it as a new dimension. We cycle on the days without data and for each other dimension
             #if the "0" day is not present we fill the 0 for kg and time. Then we delete the dim=0 data
@@ -192,12 +193,8 @@ class Graphic_Utils:
                                 plot_dict[at_name][key]["time"].append(0)
                                 plot_dict[at_name][key]["kg"].append(0)
 
-                print(plot_dict)
-
                 #deleting the empty (dim = 0)
                 del plot_dict[at_name][0]
-
-                print(plot_dict)
 
             for key in plot_dict[at_name].keys():
                 label_ = at_name + " Dimension: {} mm".format(str(key))
@@ -206,10 +203,18 @@ class Graphic_Utils:
                 y = plot_dict[at_name][key]["time"] 
                 txt = plot_dict[at_name][key]["kg"]
 
+                """
+
                 if colors is not None and col_id < len(colors):
-                    scat = ax.plot(x, y, label=label_, color=colors[idx], markersize=10, marker='o')
+                    scat = ax.plot(x, y, label=label_, color=colors[idx], markersize=10, marker=None)
                 else:
                     scat = ax.plot(x, y, label=label_, markersize=10, marker='o')
+
+                """
+                scat = ax.plot(x, y, label=label_)
+                scat = Graphic_Utils.style_for_plot(scat, col_id, styles)
+                fig.canvas.draw()
+                fig.canvas.flush_events()
 
                 for ind, txt_ in enumerate(txt):
                     ax.annotate("Kg: {}".format(txt_), (x[ind] + 0.03, y[ind]+0.06), fontsize=10)
@@ -258,8 +263,7 @@ class Graphic_Utils:
             plot_dict[key]["kg"] = []
 
         for key in plot_dict:
-            print("Atleta: {}".format(key))
-            print(data[ATHLETES][key][PERFORMANCE])
+            
             start = datetime.datetime.strptime(date_range[0], '%d/%m/%Y')
             end = datetime.datetime.strptime(date_range[1], '%d/%m/%Y')
             step = datetime.timedelta(days=1)
@@ -373,15 +377,87 @@ class Graphic_Utils:
                 
                 start += step
 
-        print(plot_dict)
-        
+
+        """
         if COLORI in data.keys():
             fig, ax = Graphic_Utils.generate_point_suspension(plot_dict, ["days", "time", "dim", "kg"], extra="kg", convert_lab={"days": "Day", "time": "Time (s)", "kg": "Load (Kg)", "dim": "Dimension (mm)"}, colors=data[COLORI])
         else:
             fig, ax = Graphic_Utils.generate_point_suspension(plot_dict, ["days", "time", "dim", "kg"], extra="kg", convert_lab={"days": "Day", "time": "Time (s)", "kg": "Load (Kg)", "dim": "Dimension (mm)"})
+        """ 
 
+        styles_ = Graphic_Utils.retrieve_plot_info(data)
+
+        fig, ax = Graphic_Utils.generate_point_suspension(plot_dict, ["days", "time", "dim", "kg"], extra="kg", convert_lab={"days": "Day", "time": "Time (s)", "kg": "Load (Kg)", "dim": "Dimension (mm)"}, styles=styles_)
         
         return fig, ax
+
+
+    def retrieve_plot_info(data):
+
+        s = {"Colors":[], "Line_style": [], "Line_width": [], "Marker_size": [], "Marker_style": [], "Text_size": []}
+    
+
+        if GRAPH_STYLES not in data.keys():
+            return s 
+
+        else:
+            styles = data[GRAPH_STYLES]
+
+            if COLORI in styles.keys():
+                s["Colors"] = styles[COLORI]
+            
+            if STILE_LINEE in styles.keys():
+                s["Line_style"] = styles[STILE_LINEE]
+
+            if DIMENSIONE_LINEE in styles.keys():
+                s["Line_width"] = styles[DIMENSIONE_LINEE]
+
+            if DIMENSIONE_PUNTI in styles.keys():
+                s["Marker_size"] = styles[DIMENSIONE_PUNTI]
+
+            if STILE_PUNTI in styles.keys():
+                s["Marker_style"] = styles[STILE_PUNTI]
+
+            if DIMENSIONE_TESTO in styles.keys():
+                s["Text_size"] = styles[DIMENSIONE_TESTO]
+
+            return s
+
+    def style_for_plot(lines, id_, styles):
+
+        #return same if style are empty:
+        ret = True
+        for key in styles.keys():
+            #print(key, styles[key])
+            if len(styles[key]) != 0: ret = False
+
+        if ret: return pl
+
+        for key in styles.keys():
+            if len(styles[key]) > 0:
+                if id_ < len(styles[key]):
+                    prop = styles[key][id_]
+                else:
+                    prop = styles[key][-1]
+
+                for pl in lines:
+                    if key == "Colors":
+                        pl.set_color(prop)
+                    if key == "Line_style":
+                        pl.set_linestyle(prop)
+                    if key == "Line_width":
+                        pl.set_linewidth(prop)
+                    if key == "Marker_size":
+                        pl.set_markersize(prop)
+                    if key == "Marker_style":
+                        pl.set_marker(prop)
+
+        return pl
+
+            
+
+
+
 
 
 
