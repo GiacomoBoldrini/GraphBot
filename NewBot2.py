@@ -459,7 +459,19 @@ def change_style(update, context):
     # If we collect features for a new person, clear the cache and save the gender
     if not context.user_data.get(START_OVER):
         #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
-        text = 'Selezionare un attributo da aggiornare'
+        text = 'Se vuoi cambiare i colori, sceglili da qui: https://matplotlib.org/3.1.0/gallery/color/named_colors.html' \
+                '\n e scrivili come una lista separata da virgole'\
+                '\n esempio: dodgerblue,fuchsia,green,darkolivegreen.' \
+                '\n' \
+                '\n Se vuoi cambiare lo stile del punto scegli da qui: https://matplotlib.org/api/markers_api.html' \
+                '\n e scrivili come una lista separata da virgole'\
+                '\n esempio: .,o,v' \
+                '\n' \
+                '\n Se vuoi cambiare lo stile delle linee scegli da qui: https://matplotlib.org/3.1.0/gallery/lines_bars_and_markers/linestyles.html' \
+                '\n e scrivile come una lista separata da virgole' \
+                '\n esempio: dotted,solid,dashed' \
+                '\n' \
+                '\n Se vuoi resettare digita \"Reset\".'
         try:
             update.callback_query.answer()
             update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
@@ -469,11 +481,20 @@ def change_style(update, context):
 
     # But after we do that, we need to send a new message
     else:
-        text = 'Selezionare un attributo da plottare.' \
-                '\n Se vuoi cambiare i colori, sceglili da qui: https://matplotlib.org/3.1.0/gallery/color/named_colors.html' \
+        text = 'Se vuoi cambiare i colori, sceglili da qui: https://matplotlib.org/3.1.0/gallery/color/named_colors.html' \
                 '\n e scrivili come una lista separata da virgole'\
                 '\n esempio: dodgerblue,fuchsia,green,darkolivegreen.' \
-                '\n se vuoi resettare digita \"Reset\".'
+                '\n' \
+                '\n Se vuoi cambiare lo stile del punto scegli da qui: https://matplotlib.org/api/markers_api.html' \
+                '\n e scrivili come una lista separata da virgole'\
+                '\n esempio: .,o,v' \
+                '\n' \
+                '\n Se vuoi cambiare lo stile delle linee scegli da qui: https://matplotlib.org/3.1.0/gallery/lines_bars_and_markers/linestyles.html' \
+                '\n e scrivile come una lista separata da virgole' \
+                '\n esempio: dotted,solid,dashed' \
+                '\n' \
+                '\n Se vuoi resettare digita \"Reset\".'
+                
         update.message.reply_text(text=text, reply_markup=keyboard)
 
     context.user_data[START_OVER] = False
