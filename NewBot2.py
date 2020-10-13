@@ -43,7 +43,7 @@ SELECTING_FEATURE, TYPING = map(chr, range(10, 12))
 # Meta states
 STOPPING, SHOWING = map(chr, range(13, 15))
 # Shortcut for ConversationHandler.END
-END = ConversationHandler.END
+END, END1 = ConversationHandler.END, ConversationHandler.END
 
 # Different constants for this example
 (PARENTS, CHILDREN, SELF, GENDER, MALE, FEMALE, AGE, NAME, START_OVER, FEATURES,
@@ -64,6 +64,9 @@ ATHLETE, CONTINUE, MOVE_TO_PERF, PLOT_PERFORMANCE = "ATHLETE", "CONTINUE", "MOVE
 COLORI, BAR_PLOT_COLOR, CHOOSE_COLORS, SELECTING_DIMENSION, CARICO = "COLORI", "BAR_PLOT_COLOR", "CHOOSE_COLORS", "SELECTING_DIMENSION", "CARICO"
 
 GRAPH_STYLES = "GRAPH_STYLES"
+
+TYPING_2, INPUT_STYLE, STILE_PUNTI, STILE_LINEE, DIMENSIONE_PUNTI, DIMENSIONE_LINEE, DIMENSIONE_TESTO = "TYPING_2", "INPUT_STYLE", "STILE_PUNTI", "STILE_LINEE", "DIMENSIONE_PUNTI", "DIMENSIONE_LINEE", "DIMENSIONE_TESTO"
+
 
 #--------------Plotters----------------
 def autolabel(ax, rects, weights):
@@ -372,10 +375,10 @@ def select_performance_to_plot(update, context):
     buttons = [[
         InlineKeyboardButton(text='Potenza Trazioni', callback_data=str(POT_SBARRA)),
         InlineKeyboardButton(text='Sospensioni', callback_data=str(SOSPENSIONI)),
+        InlineKeyboardButton(text='Seleziona Carico', callback_data=str(CARICO)),
         #InlineKeyboardButton(text='Cambia Colori', callback_data=str(COLORI)),
     ], 
     [
-        InlineKeyboardButton(text='Seleziona Carico', callback_data=str(CARICO)),
         InlineKeyboardButton(text='Seleziona Dimensioni Tacca', callback_data=str(DIMENSION)),
         InlineKeyboardButton(text='Stile Grafici', callback_data=str(GRAPH_STYLES)),
         InlineKeyboardButton(text='Indietro', callback_data=str(END)),
@@ -406,6 +409,29 @@ def select_performance_to_plot(update, context):
     return SELECTING_FEATURE
 
 
+def ask_for_style(update, context):
+    """Prompt user to input data for selected feature."""
+    context.user_data[CURRENT_LEVEL] = update.callback_query.data
+
+    text = 'Okay, cambia lo stile per {}'.format(_feature_switcher(update.callback_query.data))
+
+    update.callback_query.answer()
+    update.callback_query.edit_message_text(text=text)
+
+    return TYPING_2
+
+
+def save_styles(update, context):
+
+    ud = context.user_data
+    ud[GRAPH_STYLES][ud[CURRENT_LEVEL]] = update.message.text.split(',')
+
+    context.user_data[START_OVER] = True
+
+    return change_style(update, context)
+
+
+
 def change_style(update, context):
     ud = context.user_data
 
@@ -416,13 +442,13 @@ def change_style(update, context):
 
     buttons = [[
         InlineKeyboardButton(text='Cambia Colori', callback_data=str(COLORI)),
-        InlineKeyboardButton(text='Cambia Stile Punti', callback_data=str(COLORI)),
-        InlineKeyboardButton(text='Cambia Stile Linee', callback_data=str(COLORI)),
+        InlineKeyboardButton(text='Cambia Stile Punti', callback_data=str(STILE_PUNTI)),
+        InlineKeyboardButton(text='Cambia Stile Linee', callback_data=str(STILE_LINEE)),
     ], 
     [   
-        InlineKeyboardButton(text='Cambia Dimensione Punti', callback_data=str(COLORI)),
-        InlineKeyboardButton(text='Cambia Dimensione Linee', callback_data=str(COLORI)),
-        InlineKeyboardButton(text='Cambia Dimensione Testo', callback_data=str(COLORI)),
+        InlineKeyboardButton(text='Cambia Dimensione Punti', callback_data=str(DIMENSIONE_PUNTI)),
+        InlineKeyboardButton(text='Cambia Dimensione Linee', callback_data=str(DIMENSIONE_LINEE)),
+        InlineKeyboardButton(text='Cambia Dimensione Testo', callback_data=str(DIMENSIONE_TESTO)),
 
     ],
     [
@@ -433,7 +459,19 @@ def change_style(update, context):
     # If we collect features for a new person, clear the cache and save the gender
     if not context.user_data.get(START_OVER):
         #context.user_data[FEATURES] = {GENDER: update.callback_query.data}
-        text = 'Selezionare un attributo da aggiornare'
+        text = 'Se vuoi cambiare i colori, sceglili da qui: https://matplotlib.org/3.1.0/gallery/color/named_colors.html' \
+                '\n e scrivili come una lista separata da virgole'\
+                '\n esempio: dodgerblue,fuchsia,green,darkolivegreen.' \
+                '\n' \
+                '\n Se vuoi cambiare lo stile del punto scegli da qui: https://matplotlib.org/api/markers_api.html' \
+                '\n e scrivili come una lista separata da virgole'\
+                '\n esempio: .,o,v' \
+                '\n' \
+                '\n Se vuoi cambiare lo stile delle linee scegli da qui: https://matplotlib.org/3.1.0/gallery/lines_bars_and_markers/linestyles.html' \
+                '\n e scrivile come una lista separata da virgole' \
+                '\n esempio: dotted,solid,dashed' \
+                '\n' \
+                '\n Se vuoi resettare digita \"Reset\".'
         try:
             update.callback_query.answer()
             update.callback_query.edit_message_text(text=text, reply_markup=keyboard)
@@ -443,19 +481,26 @@ def change_style(update, context):
 
     # But after we do that, we need to send a new message
     else:
-        text = 'Selezionare un attributo da plottare.' \
-                '\n Se vuoi cambiare i colori, sceglili da qui: https://matplotlib.org/3.1.0/gallery/color/named_colors.html' \
+        text = 'Se vuoi cambiare i colori, sceglili da qui: https://matplotlib.org/3.1.0/gallery/color/named_colors.html' \
                 '\n e scrivili come una lista separata da virgole'\
                 '\n esempio: dodgerblue,fuchsia,green,darkolivegreen.' \
-                '\n se vuoi resettare digita \"Reset\".'
+                '\n' \
+                '\n Se vuoi cambiare lo stile del punto scegli da qui: https://matplotlib.org/api/markers_api.html' \
+                '\n e scrivili come una lista separata da virgole'\
+                '\n esempio: .,o,v' \
+                '\n' \
+                '\n Se vuoi cambiare lo stile delle linee scegli da qui: https://matplotlib.org/3.1.0/gallery/lines_bars_and_markers/linestyles.html' \
+                '\n e scrivile come una lista separata da virgole' \
+                '\n esempio: dotted,solid,dashed' \
+                '\n' \
+                '\n Se vuoi resettare digita \"Reset\".'
+                
         update.message.reply_text(text=text, reply_markup=keyboard)
 
     context.user_data[START_OVER] = False
 
-    return TYPING
+    return INPUT_STYLE
     
-
-
 
 def select_day(update, context):
 
@@ -1223,6 +1268,16 @@ def end_performing(update, context):
 
     return END
 
+
+def end_restyling(update, context):
+
+    ud = context.user_data
+    ud[START_OVER] = True
+
+    select_day(update, context)
+
+    return END1
+
 def end_day(update, context):
 
     ud = context.user_data
@@ -1444,8 +1499,6 @@ def main():
     #-----------------Conversazione Per Plottare------------------
     #-------------------------------------------------------------
 
-
-
     plot_performances = ConversationHandler(
         entry_points=[CallbackQueryHandler(select_performance_to_plot, pattern='^' + str(CONTINUE) + '$')],
 
@@ -1453,10 +1506,13 @@ def main():
 
             SELECTING_FEATURE: [CallbackQueryHandler(plot_performances_,
                                                      pattern='^' + str(POT_SBARRA) + '$|^' + str(SOSPENSIONI) + '$|^' + str(COLORI) + '$|^' + str(CARICO) + '$|^' + str(DIMENSION) + '$'), 
-                                CallbackQueryHandler(change_style,
-                                                     pattern='^' + str(GRAPH_STYLES) + '$'),                      ],
+                                CallbackQueryHandler(change_style, pattern='^' + str(GRAPH_STYLES) + '$')],
+
+            INPUT_STYLE: [CallbackQueryHandler(ask_for_style, pattern='^' + str(COLORI) + '$|^' + str(STILE_PUNTI) + '$|^' + str(STILE_LINEE) + '$|^' + str(DIMENSIONE_PUNTI) + '$|^' + str(DIMENSIONE_LINEE) + '$|^' + str(DIMENSIONE_TESTO) + '$')],
 
             TYPING: [MessageHandler(Filters.text & ~Filters.command, save_input_plot)],
+
+            TYPING_2: [MessageHandler(Filters.text & ~Filters.command, save_styles)],
         },
 
         fallbacks=[
